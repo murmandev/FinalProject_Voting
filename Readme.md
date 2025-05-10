@@ -1,4 +1,4 @@
-Децентрализованное приложение на Эфире и сделанное с использованием Scaffold-ETH 2
+Децентрализованное приложение на Эфире, сделанное с использованием Scaffold-ETH 2
 
 Клонируем репозиторий:
 git clone https://github.com/murmandev/FinalProject_Voting.git
