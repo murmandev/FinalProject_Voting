@@ -93,6 +93,18 @@ export default function Home() {
 
   const castVote = async (index: number, support: boolean) => {
     if (!voting) return;
+
+    const proposal = proposals.find(p => p.index === index);
+    console.log("🔍 Голосование по инициативе:");
+    console.log("📋 index:", index);
+    console.log("📌 support:", support);
+    console.log("👤 address:", address);
+    console.log("🧾 createdAt:", proposal?.createdAt);
+    console.log("⏱ now:", now);
+    console.log("📆 осталось мс:", proposal ? proposal.createdAt + VOTING_DURATION - now : "❌ нет данных");
+    console.log("✔️ userVote:", userVotes.get(index));
+    console.log("🗂 archived (расчётно):", proposal ? now >= proposal.createdAt + VOTING_DURATION : "❓");
+    
     setDisabledVotes(prev => new Set(prev).add(index));
     try {
       await voting.write.vote([index, support]);
