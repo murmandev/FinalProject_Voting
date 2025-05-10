@@ -15,6 +15,7 @@ type Proposal = {
 };
 
 const VOTING_DURATION = 3 * 24 * 60 * 60 * 1000;
+const COOLDOWN_DURATION = 60 * 1000;
 
 const getRemainingTime = (createdAt: number, now: number): string => {
   const endTime = createdAt + VOTING_DURATION;
@@ -24,9 +25,9 @@ const getRemainingTime = (createdAt: number, now: number): string => {
   const hours = Math.floor((remaining / (1000 * 60 * 60)) % 24);
   const minutes = Math.floor((remaining / (1000 * 60)) % 60);
   const seconds = Math.floor((remaining / 1000) % 60);
-  return `${days}д ${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds
+  return `${days}д ${hours.toString().padStart(2, "0")}:${minutes
     .toString()
-    .padStart(2, "0")}`;
+    .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 };
 
 export default function Home() {
@@ -40,6 +41,7 @@ export default function Home() {
   const [newDetails, setNewDetails] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [disabledVotes, setDisabledVotes] = useState<Set<number>>(new Set());
+  const [voteCooldowns, setVoteCooldowns] = useState<Map<number, number>>(new Map());
 
   const [page, setPage] = useState(0);
   const pageSize = 9;
@@ -47,15 +49,13 @@ export default function Home() {
   const [showOnlyMine, setShowOnlyMine] = useState(false);
 
   useEffect(() => {
-    const nowInterval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(nowInterval);
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchProposals = async () => {
     if (!voting) return;
-
-    const [desc, details, forVotes, againstVotes, createdAts, indices, authors] =
-      await voting.read.getProposals();
+    const [desc, details, forVotes, againstVotes, createdAts, indices, authors] = await voting.read.getProposals();
 
     const formatted: Proposal[] = desc.map((d: string, i: number) => ({
       description: d,
@@ -96,6 +96,7 @@ export default function Home() {
   const castVote = async (index: number, support: boolean) => {
     if (!voting) return;
     setDisabledVotes(prev => new Set(prev).add(index));
+    setVoteCooldowns(prev => new Map(prev).set(index, Date.now() + COOLDOWN_DURATION));
     try {
       await voting.write.vote([index, support]);
     } catch (e) {
@@ -127,16 +128,12 @@ export default function Home() {
   });
 
   const paginated = filtered
-    .sort((a, b) => b.createdAt - a.createdAt)
+    .sort((a, b) => (a.createdAt + VOTING_DURATION - now) - (b.createdAt + VOTING_DURATION - now))
     .slice(page * pageSize, (page + 1) * pageSize);
 
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-6">Инициативы</h1>
-
-      {address && (
-        <div className="text-sm text-gray-500 mb-4">Ваш адрес: {address}</div>
-      )}
 
       {showForm && (
         <div className="mb-6 space-y-4">
@@ -192,34 +189,37 @@ export default function Home() {
           const votingEnded = now >= p.createdAt + VOTING_DURATION;
           const userVote = userVotes.get(p.index) ?? 0;
           const disabled = disabledVotes.has(p.index);
+          const cooldownEnd = voteCooldowns.get(p.index) || 0;
+          const isCoolingDown = Date.now() < cooldownEnd;
 
           return (
             <div key={p.index} className="border p-4 rounded shadow-md bg-white text-black">
               <div className="font-semibold mb-2 text-lg">{p.description}</div>
               <div className="text-sm text-gray-700 mb-2 whitespace-pre-line">{p.details}</div>
-              <div className="text-xs text-gray-400 mb-1">
-                Автор: {p.author} {address?.toLowerCase() === p.author ? "(Вы)" : ""}
-              </div>
-              <div className="text-sm text-gray-600 mb-1">
-                За: {p.votesFor} | Против: {p.votesAgainst}
-              </div>
+              <div className="text-sm text-gray-600 mb-1">За: {p.votesFor} | Против: {p.votesAgainst}</div>
               <div className="text-xs text-gray-500 mb-3">{getRemainingTime(p.createdAt, now)}</div>
               {!votingEnded ? (
                 userVote === 0 ? (
                   <div className="flex space-x-2">
                     <button
                       onClick={() => castVote(p.index, true)}
-                      disabled={disabled}
-                      className={`px-3 py-1 rounded text-white ${disabled ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}`}
+                      disabled={disabled || isCoolingDown}
+                      className={`px-3 py-1 rounded text-white ${
+                        disabled || isCoolingDown ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
                     >ЗА</button>
                     <button
                       onClick={() => castVote(p.index, false)}
-                      disabled={disabled}
-                      className={`px-3 py-1 rounded text-white ${disabled ? "bg-gray-400" : "bg-red-600 hover:bg-red-700"}`}
+                      disabled={disabled || isCoolingDown}
+                      className={`px-3 py-1 rounded text-white ${
+                        disabled || isCoolingDown ? 'bg-gray-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
+                      }`}
                     >ПРОТИВ</button>
                   </div>
                 ) : (
-                  <div className="text-green-600 text-sm">Вы проголосовали ({userVote === 1 ? "ЗА" : "ПРОТИВ"})</div>
+                  <div className="text-green-600 text-sm">
+                    Вы проголосовали ({userVote === 1 ? "ЗА" : "ПРОТИВ"})
+                  </div>
                 )
               ) : (
                 <div className="text-gray-500 italic text-sm">Голосование завершено</div>
