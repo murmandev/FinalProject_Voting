@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useVotingContract } from "../hooks/useVotingContract";
 import { useAccount } from "wagmi";
 
-// Вспомогательный тип
 type Proposal = {
   description: string;
   details: string;
@@ -25,7 +24,9 @@ const getRemainingTime = (createdAt: number, now: number): string => {
   const hours = Math.floor((remaining / (1000 * 60 * 60)) % 24);
   const minutes = Math.floor((remaining / (1000 * 60)) % 60);
   const seconds = Math.floor((remaining / 1000) % 60);
-  return `${days}д ${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  return `${days}д ${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds
+    .toString()
+    .padStart(2, "0")}`;
 };
 
 export default function Home() {
@@ -53,7 +54,8 @@ export default function Home() {
   const fetchProposals = async () => {
     if (!voting) return;
 
-    const [desc, details, forVotes, againstVotes, createdAts, indices, authors] = await voting.read.getProposals();
+    const [desc, details, forVotes, againstVotes, createdAts, indices, authors] =
+      await voting.read.getProposals();
 
     const formatted: Proposal[] = desc.map((d: string, i: number) => ({
       description: d,
@@ -93,18 +95,6 @@ export default function Home() {
 
   const castVote = async (index: number, support: boolean) => {
     if (!voting) return;
-
-    const proposal = proposals.find(p => p.index === index);
-    console.log("🔍 Голосование по инициативе:");
-    console.log("📋 index:", index);
-    console.log("📌 support:", support);
-    console.log("👤 address:", address);
-    console.log("🧾 createdAt:", proposal?.createdAt);
-    console.log("⏱ now:", now);
-    console.log("📆 осталось мс:", proposal ? proposal.createdAt + VOTING_DURATION - now : "❌ нет данных");
-    console.log("✔️ userVote:", userVotes.get(index));
-    console.log("🗂 archived (расчётно):", proposal ? now >= proposal.createdAt + VOTING_DURATION : "❓");
-    
     setDisabledVotes(prev => new Set(prev).add(index));
     try {
       await voting.write.vote([index, support]);
@@ -137,12 +127,16 @@ export default function Home() {
   });
 
   const paginated = filtered
-    .sort((a, b) => (a.createdAt + VOTING_DURATION - now) - (b.createdAt + VOTING_DURATION - now))
+    .sort((a, b) => b.createdAt - a.createdAt)
     .slice(page * pageSize, (page + 1) * pageSize);
 
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-6">Инициативы</h1>
+
+      {address && (
+        <div className="text-sm text-gray-500 mb-4">Ваш адрес: {address}</div>
+      )}
 
       {showForm && (
         <div className="mb-6 space-y-4">
@@ -184,7 +178,6 @@ export default function Home() {
           >
             {showOnlyMine ? "Показать все" : "Мои инициативы"}
           </button>
-
           <button
             onClick={() => setShowOnlyEnded(!showOnlyEnded)}
             className={`px-4 py-2 rounded ${showOnlyEnded ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-800"}`}
@@ -204,7 +197,12 @@ export default function Home() {
             <div key={p.index} className="border p-4 rounded shadow-md bg-white text-black">
               <div className="font-semibold mb-2 text-lg">{p.description}</div>
               <div className="text-sm text-gray-700 mb-2 whitespace-pre-line">{p.details}</div>
-              <div className="text-sm text-gray-600 mb-1">За: {p.votesFor} | Против: {p.votesAgainst}</div>
+              <div className="text-xs text-gray-400 mb-1">
+                Автор: {p.author} {address?.toLowerCase() === p.author ? "(Вы)" : ""}
+              </div>
+              <div className="text-sm text-gray-600 mb-1">
+                За: {p.votesFor} | Против: {p.votesAgainst}
+              </div>
               <div className="text-xs text-gray-500 mb-3">{getRemainingTime(p.createdAt, now)}</div>
               {!votingEnded ? (
                 userVote === 0 ? (
@@ -212,12 +210,12 @@ export default function Home() {
                     <button
                       onClick={() => castVote(p.index, true)}
                       disabled={disabled}
-                      className={`px-3 py-1 rounded text-white ${disabled ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                      className={`px-3 py-1 rounded text-white ${disabled ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}`}
                     >ЗА</button>
                     <button
                       onClick={() => castVote(p.index, false)}
                       disabled={disabled}
-                      className={`px-3 py-1 rounded text-white ${disabled ? 'bg-gray-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
+                      className={`px-3 py-1 rounded text-white ${disabled ? "bg-gray-400" : "bg-red-600 hover:bg-red-700"}`}
                     >ПРОТИВ</button>
                   </div>
                 ) : (
