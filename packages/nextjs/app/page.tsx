@@ -15,7 +15,6 @@ type Proposal = {
 };
 
 const VOTING_DURATION = 3 * 24 * 60 * 60 * 1000;
-const COOLDOWN_DURATION = 60 * 1000;
 
 const getRemainingTime = (createdAt: number, now: number): string => {
   const endTime = createdAt + VOTING_DURATION;
@@ -41,7 +40,6 @@ export default function Home() {
   const [newDetails, setNewDetails] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [disabledVotes, setDisabledVotes] = useState<Set<number>>(new Set());
-  const [voteCooldowns, setVoteCooldowns] = useState<Map<number, number>>(new Map());
 
   const [page, setPage] = useState(0);
   const pageSize = 9;
@@ -49,13 +47,15 @@ export default function Home() {
   const [showOnlyMine, setShowOnlyMine] = useState(false);
 
   useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
+    const nowInterval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(nowInterval);
   }, []);
 
   const fetchProposals = async () => {
     if (!voting) return;
-    const [desc, details, forVotes, againstVotes, createdAts, indices, authors] = await voting.read.getProposals();
+
+    const [desc, details, forVotes, againstVotes, createdAts, indices, authors] =
+      await voting.read.getProposals();
 
     const formatted: Proposal[] = desc.map((d: string, i: number) => ({
       description: d,
@@ -73,7 +73,10 @@ export default function Home() {
     const votes: number[] = [];
     for (const p of formatted) {
       try {
-        const vote = await voting.read.getVoteStatus([address, p.index]) as number;
+        const vote = (await voting.read.getVoteStatus([
+          address,
+          p.index,
+        ])) as number;
         votes.push(vote);
       } catch {
         votes.push(0);
@@ -95,8 +98,8 @@ export default function Home() {
 
   const castVote = async (index: number, support: boolean) => {
     if (!voting) return;
-    setDisabledVotes(prev => new Set(prev).add(index));
-    setVoteCooldowns(prev => new Map(prev).set(index, Date.now() + COOLDOWN_DURATION));
+
+    setDisabledVotes((prev) => new Set(prev).add(index));
     try {
       await voting.write.vote([index, support]);
     } catch (e) {
@@ -118,7 +121,7 @@ export default function Home() {
     }
   };
 
-  const filtered = proposals.filter(p => {
+  const filtered = proposals.filter((p) => {
     const votingEnded = now >= p.createdAt + VOTING_DURATION;
     const isMine = address?.toLowerCase() === p.author;
     if (showOnlyEnded && !votingEnded) return false;
@@ -128,7 +131,10 @@ export default function Home() {
   });
 
   const paginated = filtered
-    .sort((a, b) => (a.createdAt + VOTING_DURATION - now) - (b.createdAt + VOTING_DURATION - now))
+    .sort(
+      (a, b) =>
+        a.createdAt + VOTING_DURATION - now - (b.createdAt + VOTING_DURATION - now)
+    )
     .slice(page * pageSize, (page + 1) * pageSize);
 
   return (
@@ -171,13 +177,18 @@ export default function Home() {
         <div className="flex space-x-2">
           <button
             onClick={() => setShowOnlyMine(!showOnlyMine)}
-            className={`px-4 py-2 rounded ${showOnlyMine ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-800"}`}
+            className={`px-4 py-2 rounded ${
+              showOnlyMine ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-800"
+            }`}
           >
             {showOnlyMine ? "Показать все" : "Мои инициативы"}
           </button>
+
           <button
             onClick={() => setShowOnlyEnded(!showOnlyEnded)}
-            className={`px-4 py-2 rounded ${showOnlyEnded ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-800"}`}
+            className={`px-4 py-2 rounded ${
+              showOnlyEnded ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-800"
+            }`}
           >
             {showOnlyEnded ? "Показать активные" : "Показать завершённые"}
           </button>
@@ -189,32 +200,45 @@ export default function Home() {
           const votingEnded = now >= p.createdAt + VOTING_DURATION;
           const userVote = userVotes.get(p.index) ?? 0;
           const disabled = disabledVotes.has(p.index);
-          const cooldownEnd = voteCooldowns.get(p.index) || 0;
-          const isCoolingDown = Date.now() < cooldownEnd;
 
           return (
             <div key={p.index} className="border p-4 rounded shadow-md bg-white text-black">
               <div className="font-semibold mb-2 text-lg">{p.description}</div>
               <div className="text-sm text-gray-700 mb-2 whitespace-pre-line">{p.details}</div>
-              <div className="text-sm text-gray-600 mb-1">За: {p.votesFor} | Против: {p.votesAgainst}</div>
-              <div className="text-xs text-gray-500 mb-3">{getRemainingTime(p.createdAt, now)}</div>
+              <div className="text-sm text-gray-500 mb-1">
+                Автор: {p.author.toLowerCase() === address?.toLowerCase() ? "Вы" : p.author}
+              </div>
+              <div className="text-sm text-gray-600 mb-1">
+                За: {p.votesFor} | Против: {p.votesAgainst}
+              </div>
+              <div className="text-xs text-gray-500 mb-3">
+                {getRemainingTime(p.createdAt, now)}
+              </div>
               {!votingEnded ? (
                 userVote === 0 ? (
                   <div className="flex space-x-2">
                     <button
                       onClick={() => castVote(p.index, true)}
-                      disabled={disabled || isCoolingDown}
+                      disabled={disabled}
                       className={`px-3 py-1 rounded text-white ${
-                        disabled || isCoolingDown ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                        disabled
+                          ? "bg-gray-400 cursor-not-allowed"
+                          : "bg-blue-600 hover:bg-blue-700"
                       }`}
-                    >ЗА</button>
+                    >
+                      ЗА
+                    </button>
                     <button
                       onClick={() => castVote(p.index, false)}
-                      disabled={disabled || isCoolingDown}
+                      disabled={disabled}
                       className={`px-3 py-1 rounded text-white ${
-                        disabled || isCoolingDown ? 'bg-gray-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
+                        disabled
+                          ? "bg-gray-400 cursor-not-allowed"
+                          : "bg-red-600 hover:bg-red-700"
                       }`}
-                    >ПРОТИВ</button>
+                    >
+                      ПРОТИВ
+                    </button>
                   </div>
                 ) : (
                   <div className="text-green-600 text-sm">
@@ -234,13 +258,19 @@ export default function Home() {
           onClick={() => setPage((p) => Math.max(0, p - 1))}
           disabled={page === 0}
           className="bg-gray-300 text-gray-700 px-4 py-2 rounded disabled:opacity-50"
-        >Назад</button>
+        >
+          Назад
+        </button>
         <span className="text-sm text-gray-500">Страница {page + 1}</span>
         <button
-          onClick={() => setPage((p) => (page + 1) * pageSize < filtered.length ? p + 1 : p)}
+          onClick={() =>
+            setPage((p) => (page + 1) * pageSize < filtered.length ? p + 1 : p)
+          }
           disabled={(page + 1) * pageSize >= filtered.length}
           className="bg-gray-300 text-gray-700 px-4 py-2 rounded disabled:opacity-50"
-        >Вперёд</button>
+        >
+          Вперёд
+        </button>
       </div>
     </div>
   );
