@@ -13,9 +13,9 @@ git clone https://github.com/murmandev/FinalProject_Voting.git
 В новом терминале:
 Компилируем контракт - yarn compile
 
-Публикуем контракт в ранее запущенной ноде - yarn deploy
-Редеплой с перезаписью - yarn deploy --reset
-Очистка при серьёзном изменении контракта перед деплоем - yarn hardhat:clean
+|Публикуем контракт в ранее запущенной ноде - yarn deploy| 
+|Редеплой с перезаписью - yarn deploy --reset| 
+|Очистка при серьёзном изменении контракта перед деплоем - yarn hardhat:clean| 
 
 Подготовка для запуска проекта:
 
